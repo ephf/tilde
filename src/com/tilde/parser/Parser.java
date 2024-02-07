@@ -1,33 +1,29 @@
 package com.tilde.parser;
 
 import com.tilde.parser.node.Scope;
-import com.tilde.tokenizer.*;
+import com.tilde.tokenizer.Tokenizer;
+import com.tilde.tokenizer.TokenizerException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Parser extends Tokenizer {
 
-    public final HashMap<String, ArrayList<String>> output = new HashMap<>();
-
-    public Parser(String data) throws TokenizerException {
+    public Parser(String data) {
         super(data);
     }
 
-    public HashMap<String, ArrayList<String>> parse()  throws TokenizerException, ParserException {
-        Context.Scope std = new Context.Scope();
-        Context context = new Context("load");
-        context.stack().add(std);
+    public HashMap<String, ArrayList<String>> parse(String module_name) throws TokenizerException, ParserException {
+        HashMap<String, ArrayList<String>> files = new HashMap<>();
+        Context context = new Context(module_name, files);
 
-        context.commands().add("scoreboard objectives add __tilde.process dummy");
-        context.commands().add("scoreboard objectives add __tilde.static dummy");
-        context.commands().add("data modify storage __tilde:stack stack set value [{}]");
-        context.commands().add("data modify storage __tilde:in_args stack set value []");
-
+        context.command("scoreboard objectives add __tilde.process dummy");
         Scope.parse(this, context);
+        context.command("tellraw @a [{\"text\":\"DEBUG\\n\",\"bold\":true,\"color\":\"blue\"}," +
+                "{\"nbt\":\"{}\",\"storage\":\"lang:load\"}]");
 
-        context.into(output);
-        return output;
+        context.close();
+        return files;
     }
 
 }

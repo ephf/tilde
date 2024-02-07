@@ -1,68 +1,60 @@
 package com.tilde.parser;
 
+import com.tilde.parser.data.Type;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public record Context(CommandCollection commands, Stack stack, String filename) {
+public record Context(ArrayList<String> output_commands, String module_name, String file_name,
+                      ArrayList<HashMap<String, Type>> stack, Context parent, HashMap<String, ArrayList<String>> files) {
 
     private static int counter = 0;
 
-    public static class CommandCollection extends ArrayList<String> {
-        private final ArrayList<String> prefix = new ArrayList<>();
-
-        public void push_prefix(String prefix) {
-            this.prefix.add(prefix);
-        }
-
-        public void pop_prefix() {
-            prefix.remove(prefix.size() - 1);
-        }
-
-        public void push(String command) {
-            StringBuilder prefix = new StringBuilder();
-            for(String pref : this.prefix) prefix.append(pref).append(" ");
-            if(prefix.toString().equals("")) add(command);
-            else add("execute " + prefix + "run " + command);
-        }
-    }
-
-    public static class Scope extends HashMap<String, Type> {}
-
-    public static class Stack extends ArrayList<HashMap<String, Type>> {
-
-        public Type find(String key) {
-            for(int i = size() - 1; i >= 0; i--) {
-                Type type = get(i).get(key);
-                if(type != null) return type;
-            }
-            return null;
-        }
-
-        public void insert(String key, Type type) {
-            get(size() - 1).put(key, type);
-        }
-
-    }
-
-    public Context(Stack parent, String filename) {
-        this(new CommandCollection(), (Stack) parent.clone(), filename);
-        commands().push("scoreboard objectives add __tilde." + filename() + " dummy");
-    }
-
-    public Context(String filename) {
-        this(new Stack(), filename);
-    }
-
-    public void into(HashMap<String, ArrayList<String>> output) {
-        output.put(filename(), commands());
-    }
-
-    public static int next_counter() {
+    public static int counter() {
         return counter++;
     }
 
-    public static int counter() {
-        return counter - 1;
+    public Context(String module_name, HashMap<String, ArrayList<String>> files) {
+        this(new ArrayList<>(), module_name, "load", new ArrayList<>(), null, files);
+        stack().add(new HashMap<>());
+        command("scoreboard objectives add " + module_name() + "." + file_name() + " dummy");
+    }
+
+    public Context command(String command) {
+        output_commands().add(command);
+        return this;
+    }
+
+    public Context open(String file_name) {
+        Context context = new Context(new ArrayList<>(), module_name(), file_name, stack(), null, files());
+        context.stack().add(new HashMap<>());
+        context.command("scoreboard objectives add " + module_name() + "." + file_name() + " dummy");
+        return context;
+    }
+
+    public Context open_block() {
+        if(parent() != null) return parent().open_block();
+        Context context = new Context(new ArrayList<>(), module_name(), "block/" + file_name + counter(),
+                stack(), this, files());
+        context.stack().add(new HashMap<>());
+        return context;
+    }
+
+    public void close() {
+        files().put(file_name(), output_commands());
+        stack().remove(stack().size() - 1);
+    }
+
+    public Type find_stack(String key) {
+        for(int i = stack().size() - 1; i >= 0; i--) {
+            Type type = stack().get(i).get(key);
+            if(type != null) return type;
+        }
+        return null;
+    }
+
+    public void insert_stack(String key, Type type) {
+        stack().get(stack().size() - 1).put(key, type);
     }
 
 }

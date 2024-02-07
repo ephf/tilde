@@ -1,7 +1,5 @@
 package com.tilde.tokenizer;
 
-import java.util.Optional;
-
 public class CharStepper {
 
     private final String data;
@@ -12,18 +10,18 @@ public class CharStepper {
         this.data = data;
     }
 
-    public Optional<Character> peek() {
-        if(index >= data.length()) return Optional.empty();
-        return Optional.of(data.charAt(index));
+    public char peek() {
+        if(index >= data.length()) return 0;
+        return data.charAt(index);
     }
 
-    public Optional<Character> next() {
-        if(index >= data.length()) return Optional.empty();
-        return Optional.of(data.charAt(index++));
+    public char next() {
+        if(index >= data.length()) return 0;
+        return data.charAt(index++);
     }
 
     public boolean has_type(char ch) {
-        return peek().isPresent() && peek().get() == ch;
+        return peek() != 0 && peek() == ch;
     }
 
     public CharStepper mark() {

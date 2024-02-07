@@ -1,23 +1,25 @@
 package com.tilde.parser.node;
 
 import com.tilde.parser.*;
+import com.tilde.parser.data.Type;
 import com.tilde.tokenizer.*;
 
 public interface BinaryOperation {
 
-    static Literal parse(Parser parser, Context context) throws TokenizerException, ParserException {
-        return expression(parser, context);
+    static Type parse(Parser parser, Context context) throws TokenizerException, ParserException {
+        return declaration(parser, context);
     }
 
-    private static Literal expression(Parser parser, Context context) throws TokenizerException, ParserException {
-        Literal literal = term(parser, context);
-        while(parser.has_type("+") || parser.has_type("-")) {
-            Token.Misc operator = (Token.Misc) parser.next();
-            Literal right_literal = term(parser, context);
+    private static Type expression(Parser parser, Context context) throws TokenizerException, ParserException {
 
-            if(literal instanceof Literal.Constant.Integer left
-            && right_literal instanceof Literal.Constant.Integer right) {
-                literal = new Literal.Constant.Integer(switch (operator.data()) {
+        Type left_type = Literal.parse(parser, context);
+
+        while(parser.has_type("+") || parser.has_type("-")) {
+            Token.Misc operator = parser.expect_type(Token.Misc.class);
+            Type right_type = Literal.parse(parser, context);
+
+            if(left_type instanceof Type.Constant.Integer left && right_type instanceof Type.Constant.Integer right) {
+                left_type = new Type.Constant.Integer(switch(operator.data()) {
                     case "+" -> left.value() + right.value();
                     case "-" -> left.value() - right.value();
                     default -> 0;
@@ -25,49 +27,35 @@ public interface BinaryOperation {
                 continue;
             }
 
-            Type left = Type.Score.from(literal, context, true);
+            Type.Score left_score = Type.Score.cast(left_type, true, context);
 
-            if(right_literal instanceof Literal.Constant.Integer right) {
-                context.commands().push("scoreboard players " + (switch(operator.data()) {
-                    case "+" -> "add ";
-                    case "-" -> "remove ";
-                    default -> "";
-                }) + left + " " + right.value());
-            } else {
-                Type right = Type.Score.from(right_literal, context, false);
-                context.commands().push("scoreboard players operation " + left + " " + operator.data() + "= " + right);
-            }
-
-            literal = new Literal.Value(left);
-        }
-        return literal;
-    }
-
-    private static Literal term(Parser parser, Context context) throws TokenizerException, ParserException {
-        Literal literal = Literal.parse(parser, context);
-        while(parser.has_type("*") || parser.has_type("/") || parser.has_type("%")) {
-            Token.Misc operator = (Token.Misc) parser.next();
-            Literal right_literal = Literal.parse(parser, context);
-
-            if(literal instanceof Literal.Constant.Integer left
-            && right_literal instanceof Literal.Constant.Integer right) {
-                literal = new Literal.Constant.Integer(switch (operator.data()) {
-                    case "*" -> left.value() * right.value();
-                    case "/" -> left.value() / right.value();
-                    case "%" -> left.value() % right.value();
-                    default -> 0;
-                });
+            if(right_type instanceof Type.Constant.Integer right) {
+                context.command("scoreboard players " + (operator.data().equals("+") ? "add" : "remove") +
+                        " " + left_score + " " + right.value());
+                left_type = left_score;
                 continue;
             }
 
-
-            Type left = Type.Score.from(literal, context, true);
-            Type right = Type.Score.from(right_literal, context, false);
-
-            context.commands().push("scoreboard players operation " + left + " " + operator.data() + "= " + right);
-            literal = new Literal.Value(left);
+            context.command("scoreboard players operation " + left_score + " " + operator.data() + "= " +
+                    Type.Score.cast(right_type, false, context));
+            left_type = left_score;
         }
-        return literal;
+
+        return left_type;
+
+    }
+
+    private static Type declaration(Parser parser, Context context) throws TokenizerException, ParserException {
+
+        Type left_type = expression(parser, context);
+
+        if(parser.has_type("=")) {
+            parser.next();
+            left_type.set_value(expression(parser, context), context);
+        }
+
+        return left_type;
+
     }
 
 }
